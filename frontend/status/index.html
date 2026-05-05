@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务状态 | Orange AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0c0a1a;
+            --bg-card: #13112b;
+            --bg-card-hover: #1a1640;
+            --border: rgba(139,92,246,0.12);
+            --border-strong: rgba(139,92,246,0.2);
+            --text-primary: rgba(255,255,255,0.95);
+            --text-secondary: rgba(255,255,255,0.65);
+            --text-muted: rgba(255,255,255,0.4);
+            --purple: #8b5cf6;
+            --purple-soft: rgba(139,92,246,0.12);
+            --green: #10b981;
+            --green-dim: rgba(16,185,129,0.1);
+            --amber: #f59e0b;
+            --amber-dim: rgba(245,158,11,0.1);
+            --red: #ef4444;
+            --red-dim: rgba(239,68,68,0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: linear-gradient(145deg, #0c0a1a 0%, #0f0c20 50%, #130e28 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 64px 24px 80px;
+        }
+
+        .header {
+            margin-bottom: 48px;
+            text-align: center;
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .logo svg {
+            filter: drop-shadow(0 0 12px rgba(139,92,246,0.5));
+        }
+
+        .logo-text {
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, #8b5cf6 0%, #fff 50%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 16px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--purple);
+            box-shadow: 0 0 24px rgba(139,92,246,0.15);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-value.green { color: var(--green); }
+        .stat-value.red { color: var(--red); }
+        .stat-value.purple { color: var(--purple); }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 16px;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tab {
+            padding: 8px 16px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-tab:hover {
+            border-color: var(--purple);
+            color: var(--text-primary);
+        }
+
+        .filter-tab.active {
+            background: var(--purple-soft);
+            border-color: var(--purple);
+            color: var(--purple);
+        }
+
+        .services-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .service-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s ease;
+            cursor: default;
+        }
+
+        .service-item:last-child { border-bottom: none; }
+        .service-item:hover { background: var(--bg-card-hover); }
+
+        .service-item::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 3px;
+            height: 100%;
+        }
+
+        .service-item.operational::before { background: var(--green); }
+        .service-item.degraded::before { background: var(--amber); }
+        .service-item.down::before { background: var(--red); }
+
+        .service-led {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .service-led.operational {
+            background: var(--green);
+            box-shadow: 0 0 8px rgba(16,185,129,0.5);
+        }
+
+        .service-led.degraded {
+            background: var(--amber);
+            box-shadow: 0 0 8px rgba(245,158,11,0.5);
+        }
+
+        .service-led.down {
+            background: var(--red);
+            box-shadow: 0 0 8px rgba(239,68,68,0.5);
+            animation: pulse 1.5s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .service-info { flex: 1; }
+        .service-name { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+        .service-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+        .service-badge {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .service-badge.operational {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .service-badge.degraded {
+            background: var(--amber-dim);
+            color: var(--amber);
+        }
+
+        .service-badge.down {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        footer {
+            margin-top: 48px;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .update-time {
+            margin-top: 8px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" fill="url(#grad)"/>
+                    <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
+                    <defs>
+                        <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#8b5cf6"/>
+                            <stop offset="100%" style="stop-color:#7c3aed"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="logo-text">Orange AI</span>
+            </div>
+            <p class="tagline">你的AI伙伴，随时待命</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value green" id="stat-operational">-</div>
+                <div class="stat-label">正常运行</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value red" id="stat-down">-</div>
+                <div class="stat-label">服务异常</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value purple" id="stat-total">-</div>
+                <div class="stat-label">全部服务</div>
+            </div>
+        </div>
+
+        <div class="section-title">模型服务状态</div>
+        <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all">全部</button>
+            <button class="filter-tab" data-filter="operational">正常运行</button>
+            <button class="filter-tab" data-filter="degraded">部分异常</button>
+            <button class="filter-tab" data-filter="down">服务中断</button>
+        </div>
+
+        <div class="services-container">
+            <div id="services-list"></div>
+        </div>
+
+        <footer>
+            <div>Orange AI Platform v1.0</div>
+            <div class="update-time">最后更新: <span id="last-updated">-</span></div>
+        </footer>
+    </div>
+
+    <script>
+        const MODELS = [
+            { name: 'DeepSeek V4 Flash', desc: '闪电速度 · 日常首选', provider: 'SiliconFlow', status: 'operational' },
+            { name: 'DeepSeek V4 Pro', desc: '研究级模型 · 深度思考', provider: 'SiliconFlow', status: 'operational' },
+            { name: 'DeepSeek R1', desc: '强推理 · 解谜神器', provider: 'SiliconFlow', status: 'operational' },
+            { name: '通义千问 Max', desc: '旗舰级 · 全能选手', provider: '阿里云', status: 'operational' },
+            { name: '通义千问 Coder', desc: '代码专家 · 程序员的浪漫', provider: '阿里云', status: 'degraded' },
+            { name: 'Kimi K2.6', desc: '超长文本 · 论文神器', provider: 'Moonshot', status: 'operational' },
+            { name: 'GPT-4o', desc: '老牌劲旅 · 全能选手', provider: 'OpenAI', status: 'operational' },
+            { name: 'Claude 3.5 Sonnet', desc: '文艺青年 · 写作助手', provider: 'Anthropic', status: 'operational' },
+            { name: 'Gemini 2.0 Flash', desc: '轻量快速 · 谷歌出品', provider: 'Google', status: 'down' }
+        ];
+
+        let currentFilter = 'all';
+
+        function render() {
+            const filtered = currentFilter === 'all'
+                ? MODELS
+                : MODELS.filter(m => m.status === currentFilter);
+
+            const okCount = MODELS.filter(m => m.status === 'operational').length;
+            const downCount = MODELS.filter(m => m.status === 'down').length;
+
+            document.getElementById('stat-operational').textContent = okCount;
+            document.getElementById('stat-down').textContent = downCount;
+            document.getElementById('stat-total').textContent = MODELS.length;
+            document.getElementById('last-updated').textContent = new Date().toLocaleString('zh-CN');
+
+            const statusText = {
+                operational: '正常运行',
+                degraded: '部分异常',
+                down: '服务中断'
+            };
+
+            const list = document.getElementById('services-list');
+            list.innerHTML = filtered.map((m, i) => `
+                <div class="service-item ${m.status}">
+                    <div class="service-led ${m.status}"></div>
+                    <div class="service-info">
+                        <div class="service-name">${m.name}</div>
+                        <div class="service-desc">${m.desc} · ${m.provider}</div>
+                    </div>
+                    <div class="service-badge ${m.status}">${statusText[m.status]}</div>
+                </div>
+            `).join('');
+        }
+
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.filter;
+                render();
+            });
+        });
+
+        render();
+
+        setInterval(render, 60000);
+    </script>
+</body>
+</html>

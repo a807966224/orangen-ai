@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orange AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --accent: #8b5cf6;
+            --accent-hover: #7c3aed;
+            --bg: #0c0a1a;
+            --panel: #13112b;
+            --panel-2: #1a1640;
+            --panel-3: #221c4d;
+            --border: rgba(255, 255, 255, 0.06);
+            --border-2: rgba(255, 255, 255, 0.1);
+            --text: rgba(255, 255, 255, 0.95);
+            --text-soft: rgba(255, 255, 255, 0.7);
+            --text-dim: rgba(255, 255, 255, 0.4);
+            --glow: rgba(139, 92, 246, 0.3);
+        }
+
+        [data-theme="dawn"] {
+            --accent: #f97316;
+            --accent-hover: #ea580c;
+            --bg: #1a1410;
+            --panel: #231c16;
+            --panel-2: #2a211a;
+            --panel-3: #362a1f;
+            --glow: rgba(249, 115, 22, 0.3);
+        }
+
+        [data-theme="mint"] {
+            --accent: #10b981;
+            --accent-hover: #059669;
+            --bg: #0a1412;
+            --panel: #0f1a17;
+            --panel-2: #141f1b;
+            --panel-3: #1a2a24;
+            --glow: rgba(16, 185, 129, 0.3);
+        }
+
+        body { background-color: var(--bg); color: var(--text); }
+        .scrollbar::-webkit-scrollbar { width: 6px; }
+        .scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    </style>
+</head>
+<body class="h-full overflow-hidden" data-theme="midnight">
+    <div class="flex h-full" style="background-color: var(--bg);">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="w-64 flex flex-col h-full shrink-0 transition-all duration-300" style="background-color: var(--bg); border-right: 1px solid var(--border);">
+            <!-- Header -->
+            <div class="h-14 px-4 flex items-center gap-3" style="border-bottom: 1px solid var(--border);">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover));">橙</div>
+                <span class="text-lg font-bold sidebar-title transition-opacity" style="background: linear-gradient(135deg, var(--accent), #fff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Orange</span>
+            </div>
+
+            <!-- Content -->
+            <div class="sidebar-content flex-1 overflow-y-auto scrollbar py-3 px-2 transition-opacity">
+                <button id="newChatBtn" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-2 transition-colors" style="color: var(--text-soft);">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    <span class="sidebar-title">开启新对话</span>
+                </button>
+
+                <div class="text-xs font-semibold uppercase tracking-wider px-3 py-2 mt-4 mb-1 sidebar-title" style="color: var(--text-dim);">最近聊天</div>
+                <div id="chatHistoryList"></div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-3 space-y-3 sidebar-content transition-opacity" style="border-top: 1px solid var(--border);">
+                <!-- Theme Picker -->
+                <div id="themePicker" class="flex items-center justify-center gap-2">
+                    <button data-theme="midnight" class="theme-dot w-7 h-7 rounded-full transition-all" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 0 0 2px rgba(255,255,255,0.2);"></button>
+                    <button data-theme="dawn" class="theme-dot w-7 h-7 rounded-full transition-all" style="background: linear-gradient(135deg, #f97316, #ea580c); opacity: 0.4;"></button>
+                    <button data-theme="mint" class="theme-dot w-7 h-7 rounded-full transition-all" style="background: linear-gradient(135deg, #10b981, #059669); opacity: 0.4;"></button>
+                </div>
+
+                <!-- Account -->
+                <div class="flex items-center gap-3 px-2 py-2 rounded-lg">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover));">橙</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-semibold truncate" style="color: var(--text);">小明同学</div>
+                        <div class="text-xs" style="color: var(--text-dim);">免费额度</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main id="mainContent" class="flex-1 flex flex-col h-full min-w-0 transition-all duration-300">
+            <!-- Header -->
+            <header class="h-14 px-4 flex items-center justify-between shrink-0" style="background-color: rgba(19,17,43,0.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border);">
+                <div class="flex items-center gap-4">
+                    <!-- Sidebar Toggle Button -->
+                    <button id="toggleSidebarBtn" class="p-2 rounded-lg hover:bg-white/10 transition-colors" title="收起侧边栏" style="color: var(--text-soft);">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                    </button>
+
+                    <div id="modelSelect" class="relative">
+                        <button id="modelBtn" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all" style="background-color: var(--panel-2); border: 1px solid var(--border); color: var(--text);">
+                            <span id="currentModel">DeepSeek V4 Flash</span>
+                            <svg class="w-4 h-4" style="color: var(--text-dim);" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7"/></svg>
+                        </button>
+
+                        <div id="modelDropdown" class="absolute top-full left-0 mt-2 w-80 rounded-xl overflow-hidden z-50 hidden" style="background-color: var(--panel); border: 1px solid var(--border-2); box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+                            <div class="py-2 max-h-80 overflow-y-auto scrollbar">
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="deepseek-v4-flash" style="color: var(--text);"><div class="font-semibold text-sm">DeepSeek V4 Flash</div><div class="text-xs mt-1" style="color: var(--text-dim);">闪电速度 · 日常首选 · SiliconFlow</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="deepseek-v4-pro" style="color: var(--text);"><div class="font-semibold text-sm">DeepSeek V4 Pro</div><div class="text-xs mt-1" style="color: var(--text-dim);">研究级 · 深度思考 · SiliconFlow</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="deepseek-r1" style="color: var(--text);"><div class="font-semibold text-sm">DeepSeek R1</div><div class="text-xs mt-1" style="color: var(--text-dim);">强推理 · 解谜神器 · SiliconFlow</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="qwen3-max" style="color: var(--text);"><div class="font-semibold text-sm">通义千问 Max</div><div class="text-xs mt-1" style="color: var(--text-dim);">旗舰级 · 全能选手 · 阿里云</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="qwen3-coder" style="color: var(--text);"><div class="font-semibold text-sm">通义千问 Coder</div><div class="text-xs mt-1" style="color: var(--text-dim);">代码专家 · 程序员的浪漫 · 阿里云</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="kimi-k2.6" style="color: var(--text);"><div class="font-semibold text-sm">Kimi K2.6</div><div class="text-xs mt-1" style="color: var(--text-dim);">超长文本 · 论文神器 · Moonshot</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="gpt-4o" style="color: var(--text);"><div class="font-semibold text-sm">GPT-4o</div><div class="text-xs mt-1" style="color: var(--text-dim);">老牌劲旅 · 全能选手 · OpenAI</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="claude-3.5-sonnet" style="color: var(--text);"><div class="font-semibold text-sm">Claude 3.5 Sonnet</div><div class="text-xs mt-1" style="color: var(--text-dim);">文艺青年 · 写作助手 · Anthropic</div></div>
+                                <div class="model-option px-4 py-3 cursor-pointer transition-colors" data-model="gemini-2.0-flash" style="color: var(--text);"><div class="font-semibold text-sm">Gemini 2.0 Flash</div><div class="text-xs mt-1" style="color: var(--text-dim);">轻量快速 · 谷歌出品 · Google</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="clearBtn" class="px-4 py-2 rounded-lg text-sm font-medium transition-all" style="border: 1px solid var(--border); color: var(--text-soft);">清空</button>
+            </header>
+
+            <!-- Chat Area -->
+            <div class="flex-1 flex flex-col min-h-0">
+                <div id="chatView" class="flex-1 overflow-y-auto scrollbar">
+                    <div id="emptyState" class="flex flex-col items-center justify-center h-full px-6">
+                        <h1 class="text-4xl font-bold mb-8" style="background: linear-gradient(135deg, var(--text), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">今天想聊点啥？</h1>
+                    </div>
+
+                    <div id="messagesContainer" class="hidden flex flex-col gap-6 py-6"></div>
+                </div>
+
+                <!-- Input Area - always visible -->
+                <div class="shrink-0 px-6 py-4" style="background-color: var(--bg);">
+                    <div class="flex items-center gap-3 rounded-2xl px-5 py-3 max-w-3xl mx-auto" style="background-color: var(--panel); border: 1px solid var(--border-2); box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+                        <input type="text" id="homeInput" placeholder="输入你的问题..." class="flex-1 bg-transparent outline-none text-base" style="color: var(--text);">
+                        <button id="attachBtn" class="p-2 rounded-lg transition-colors" style="color: var(--text-dim);" title="上传图片">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="m20 15-4.8-4.8L6 19"/></svg>
+                        </button>
+                        <button id="sendBtn" class="p-2.5 rounded-xl text-white transition-all disabled:opacity-30" disabled style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); box-shadow: 0 4px 12px var(--glow);">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="fixed bottom-6 left-1/2 px-5 py-3 rounded-xl text-sm font-medium opacity-0 pointer-events-none transition-all" style="background-color: var(--panel-3); border: 1px solid var(--border-2); transform: translateX(-50%) translateY(1rem);">Toast</div>
+
+    <script>
+    (function() {
+        const $ = id => document.getElementById(id);
+        const API = '/api/v1';
+
+        const defaultModels = {
+            'deepseek-v4-flash': 'DeepSeek V4 Flash', 'deepseek-v4-pro': 'DeepSeek V4 Pro', 'deepseek-r1': 'DeepSeek R1',
+            'qwen3-max': '通义千问 Max', 'qwen3-coder': '通义千问 Coder', 'kimi-k2.6': 'Kimi K2.6',
+            'gpt-4o': 'GPT-4o', 'claude-3.5-sonnet': 'Claude 3.5 Sonnet', 'gemini-2.0-flash': 'Gemini 2.0 Flash'
+        };
+
+        let modelMap = { ...defaultModels };
+
+        const state = {
+            sessionId: null,
+            model: localStorage.getItem('orange_model') || 'deepseek-v4-flash',
+            history: [], streaming: false,
+            theme: localStorage.getItem('orange_theme') || 'midnight',
+            modelsLoaded: false,
+            attachments: []  // Base64 encoded images
+        };
+
+        function showToast(msg) {
+            const t = $('toast');
+            t.textContent = msg;
+            t.style.opacity = '1';
+            t.style.transform = 'translateX(-50%) translateY(0)';
+            clearTimeout(state._toastTimer);
+            state._toastTimer = setTimeout(() => {
+                t.style.opacity = '0';
+                t.style.transform = 'translateX(-50%) translateY(1rem)';
+            }, 3000);
+        }
+
+        function setTheme(theme) {
+            document.body.dataset.theme = theme;
+            state.theme = theme;
+            localStorage.setItem('orange_theme', theme);
+            document.querySelectorAll('.theme-dot').forEach(dot => {
+                const isActive = dot.dataset.theme === theme;
+                dot.style.opacity = isActive ? '1' : '0.4';
+                dot.style.boxShadow = isActive ? '0 0 0 2px rgba(255,255,255,0.2)' : 'none';
+            });
+        }
+
+        function setModel(modelId) {
+            state.model = modelId;
+            $('currentModel').textContent = modelMap[modelId] || modelId;
+            document.querySelectorAll('.model-option').forEach(o => {
+                const isActive = o.dataset.model === modelId;
+                o.style.backgroundColor = isActive ? 'rgba(139, 92, 246, 0.15)' : 'transparent';
+                o.style.borderLeft = isActive ? '3px solid var(--accent)' : '3px solid transparent';
+            });
+            localStorage.setItem('orange_model', modelId);
+        }
+
+        function escapeHtml(t) {
+            return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function render() {
+            const empty = state.history.length === 0;
+            $('emptyState').classList.toggle('hidden', !empty);
+            $('emptyState').classList.toggle('flex', empty);
+            $('messagesContainer').classList.toggle('hidden', empty);
+            $('messagesContainer').classList.toggle('flex', !empty);
+            $('messagesContainer').classList.toggle('flex-col', !empty);
+            $('messagesContainer').classList.toggle('gap-6', !empty);
+            $('messagesContainer').classList.toggle('py-6', !empty);
+
+            if (empty) return;
+
+            $('messagesContainer').innerHTML = state.history.map((m, i) => {
+                if (m.role === 'user') {
+                    return `<div class="flex justify-end px-6"><div class="max-w-2xl px-5 py-3 rounded-2xl rounded-br-md text-sm leading-relaxed whitespace-pre-wrap text-white" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover)); box-shadow: 0 4px 16px var(--glow);">${escapeHtml(m.content)}</div></div>`;
+                }
+                return `<div class="flex gap-3 px-6"><div class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white font-bold text-xs" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover));">橙</div><div class="flex-1 max-w-2xl"><div class="px-5 py-3 rounded-2xl rounded-tl-md text-sm leading-relaxed whitespace-pre-wrap" style="background-color: var(--panel-2); border: 1px solid var(--border); color: var(--text);">${escapeHtml(m.content)}</div><div class="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity"><button class="copy-btn text-xs px-2 py-1 rounded-md" style="color: var(--text-dim);" data-index="${i}">复制</button></div></div></div>`;
+            }).join('');
+
+            $('messagesContainer').querySelectorAll('.copy-btn').forEach(btn => {
+                btn.onclick = () => {
+                    navigator.clipboard.writeText(state.history[btn.dataset.index].content);
+                    showToast('已复制');
+                };
+            });
+        }
+
+        function addTypingIndicator() {
+            const container = $('messagesContainer');
+            const el = document.createElement('div');
+            el.className = 'flex gap-3 px-6 items-center';
+            el.innerHTML = `<div class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white font-bold text-xs" style="background: linear-gradient(135deg, var(--accent), var(--accent-hover));">橙</div><div class="flex gap-1"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 0.8s infinite ease-in-out both;"></span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 0.8s infinite ease-in-out both;animation-delay:0.16s;"></span><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 0.8s infinite ease-in-out both;animation-delay:0.32s;"></span></div>`;
+            container.appendChild(el);
+            $('chatView').scrollTop = $('chatView').scrollHeight;
+            return el;
+        }
+
+        async function loadModels() {
+            try {
+                const resp = await fetch(`${API}/models`);
+                const data = await resp.json();
+                if (data.models && data.models.length > 0) {
+                    modelMap = {};
+                    const dropdown = $('modelDropdown').querySelector('.py-2');
+                    dropdown.innerHTML = '';
+                    data.models.forEach(m => {
+                        const id = m.id || m;
+                        const name = m.name || m.id || m;
+                        modelMap[id] = name;
+                        const div = document.createElement('div');
+                        div.className = 'model-option px-4 py-3 cursor-pointer transition-colors';
+                        div.dataset.model = id;
+                        div.style.color = 'var(--text)';
+                        div.innerHTML = `<div class="font-semibold text-sm">${escapeHtml(name)}</div><div class="text-xs mt-1" style="color: var(--text-dim);">${escapeHtml(m.description || id)}</div>`;
+                        dropdown.appendChild(div);
+                    });
+                    state.modelsLoaded = true;
+                }
+            } catch (e) {
+                console.error('Failed to load models:', e);
+            }
+        }
+
+        async function loadSessions() {
+            try {
+                const resp = await fetch(`${API}/sessions`);
+                const sessions = await resp.json();
+                const list = $('chatHistoryList');
+                list.innerHTML = sessions.slice(0, 10).map(s => `
+                    <div class="session-item flex items-center gap-2 px-3 py-2 rounded-lg text-sm group" data-session-id="${s.id}" style="color: var(--text-soft);">
+                        <svg class="w-4 h-4 shrink-0 cursor-pointer" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                        <span class="truncate flex-1 cursor-pointer">${escapeHtml(s.title)}</span>
+                        <button class="delete-session-btn opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-opacity" data-session-id="${s.id}" title="删除">
+                            <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                `).join('');
+
+                list.querySelectorAll('.session-item').forEach(item => {
+                    item.querySelector('svg + span').onclick = () => loadSession(item.dataset.sessionId);
+                    item.querySelector('.delete-session-btn').onclick = (e) => {
+                        e.stopPropagation();
+                        deleteSession(item.dataset.sessionId);
+                    };
+                });
+            } catch (e) {
+                console.error('Failed to load sessions:', e);
+            }
+        }
+
+        async function deleteSession(sessionId) {
+            if (!confirm('确定删除这个对话？')) return;
+            try {
+                await fetch(`${API}/sessions/${sessionId}`, { method: 'DELETE' });
+                if (state.sessionId === sessionId) {
+                    state.sessionId = null;
+                    state.history = [];
+                    render();
+                }
+                loadSessions();
+                showToast('已删除');
+            } catch (e) {
+                console.error('Failed to delete session:', e);
+                showToast('删除失败');
+            }
+        }
+
+        async function loadSession(sessionId) {
+            try {
+                const resp = await fetch(`${API}/sessions/${sessionId}`);
+                const session = await resp.json();
+                if (session) {
+                    state.sessionId = session.id;
+                    state.history = session.messages.map(m => ({ role: m.role, content: m.content }));
+                    render();
+                    $('chatView').scrollTop = $('chatView').scrollHeight;
+                }
+            } catch (e) {
+                console.error('Failed to load session:', e);
+                showToast('加载对话失败');
+            }
+        }
+
+        async function sendMessage() {
+            const text = $('homeInput').value.trim();
+            if (!text && state.attachments.length === 0) return;
+            if (state.streaming) return;
+
+            state.streaming = true;
+            $('homeInput').value = '';
+            $('sendBtn').disabled = true;
+            $('sendBtn').style.opacity = '0.4';
+
+            // Build message content - include base64 image if present
+            let content = text;
+            if (state.attachments.length > 0) {
+                // Use base64 image data directly in content
+                // Backend will detect data:image format and convert to API format
+                content = state.attachments[0].data;
+            }
+
+            const attachmentInfo = state.attachments.length > 0
+                ? `\n[图片: ${state.attachments[0].name}]`
+                : '';
+            const fullContent = text + attachmentInfo;
+
+            state.history.push({ role: 'user', content: fullContent, hasAttachment: state.attachments.length > 0 });
+            state.attachments = []; // Clear attachments after sending
+            render();
+
+            const typingEl = addTypingIndicator();
+
+            try {
+                const resp = await fetch(`${API}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: state.model,
+                        messages: state.history.map(m => ({ role: m.role, content: m.content })),
+                        sessionId: state.sessionId
+                    })
+                });
+                const data = await resp.json();
+                typingEl.remove();
+
+                if (data.sessionId) {
+                    state.sessionId = data.sessionId;
+                }
+
+                const content = data.choices?.[0]?.message?.content || '响应为空';
+                state.history.push({ role: 'assistant', content: content });
+                loadSessions(); // Refresh session list
+            } catch (e) {
+                typingEl.remove();
+                state.history.push({ role: 'assistant', content: '网络错误: ' + e.message });
+            }
+
+            state.streaming = false;
+            $('sendBtn').disabled = false;
+            $('sendBtn').style.opacity = '1';
+            render();
+            $('chatView').scrollTop = $('chatView').scrollHeight;
+        }
+
+        // Model dropdown
+        $('modelSelect').addEventListener('click', e => {
+            e.stopPropagation();
+            $('modelDropdown').classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', () => {
+            $('modelDropdown').classList.add('hidden');
+        });
+
+        $('modelDropdown').addEventListener('click', e => {
+            const opt = e.target.closest('.model-option');
+            if (opt) {
+                setModel(opt.dataset.model);
+                $('modelDropdown').classList.add('hidden');
+                showToast('已切换到 ' + modelMap[state.model]);
+            }
+        });
+
+        // Theme
+        $('themePicker').addEventListener('click', e => {
+            const dot = e.target.closest('.theme-dot');
+            if (dot) {
+                setTheme(dot.dataset.theme);
+                showToast('主题已切换');
+            }
+        });
+
+        // Input
+        function updateSendButton() {
+            const hasText = $('homeInput').value.trim();
+            const hasAttachment = state.attachments.length > 0;
+            $('sendBtn').disabled = !hasText && !hasAttachment;
+        }
+
+        $('homeInput').addEventListener('input', updateSendButton);
+
+        $('homeInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                const hasText = $('homeInput').value.trim();
+                const hasAttachment = state.attachments.length > 0;
+                if (hasText || hasAttachment) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            }
+        });
+
+        $('sendBtn').addEventListener('click', sendMessage);
+
+        // Clear
+        $('clearBtn').addEventListener('click', () => {
+            if (state.history.length === 0) return;
+            if (confirm('确定清空对话？')) {
+                state.history = [];
+                state.sessionId = null;
+                render();
+                showToast('已清空');
+            }
+        });
+
+        // New chat
+        $('newChatBtn').addEventListener('click', () => {
+            if (state.history.length > 0) {
+                if (!confirm('确定要开始新对话？')) return;
+            }
+            state.history = [];
+            state.sessionId = null;
+            render();
+            showToast('新对话开始');
+        });
+
+        // Sidebar toggle
+        let sidebarCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+
+        function updateSidebarUI() {
+            const sidebar = $('sidebar');
+            const toggleBtn = $('toggleSidebarBtn');
+
+            if (sidebarCollapsed) {
+                sidebar.style.width = '0';
+                sidebar.style.overflow = 'hidden';
+                toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>`;
+                toggleBtn.title = '展开侧边栏';
+            } else {
+                sidebar.style.width = '';
+                sidebar.style.overflow = '';
+                toggleBtn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>`;
+                toggleBtn.title = '收起侧边栏';
+            }
+        }
+
+        $('toggleSidebarBtn').addEventListener('click', () => {
+            sidebarCollapsed = !sidebarCollapsed;
+            localStorage.setItem('sidebar_collapsed', sidebarCollapsed);
+            updateSidebarUI();
+        });
+
+        // Apply initial sidebar state
+        updateSidebarUI();
+
+        // Image attachment
+        const attachInput = document.createElement('input');
+        attachInput.type = 'file';
+        attachInput.accept = 'image/*';
+        attachInput.style.display = 'none';
+        document.body.appendChild(attachInput);
+
+        $('attachBtn').addEventListener('click', () => {
+            attachInput.click();
+        });
+
+        attachInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('图片大小不能超过10MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const base64 = ev.target.result;
+                state.attachments.push({ type: 'image', data: base64, name: file.name });
+                showToast('已添加图片: ' + file.name);
+                updateSendButton(); // Enable send button
+            };
+            reader.readAsDataURL(file);
+            attachInput.value = '';
+        });
+
+        // Init
+        loadModels();
+        loadSessions();
+        setModel(state.model);
+        setTheme(state.theme);
+        $('homeInput').focus();
+    })();
+    </script>
+</body>
+</html>

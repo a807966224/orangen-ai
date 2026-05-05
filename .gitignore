@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+out/
+
+# Docker runtime data (do not commit)
+docker/data/
+docker/auths/
+docker/logs/
+docker/config.yaml
