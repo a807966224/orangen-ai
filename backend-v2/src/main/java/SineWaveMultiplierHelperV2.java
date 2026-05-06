@@ -17,13 +17,13 @@ import java.util.stream.Collectors;
  * 核心改进 (基于V4):
  * 1. 分段中奖分布: 按百分比分段，每段独立中奖规划
  * 2. 段尾爆大奖: 段的后20%位置触发追赶，计算 gap/bet+1
- * 3. 目标必成: 尽量在80%前完成目标，完成后提前终止投注
+ * 3. 目标必成: 尽量在80%%前完成目标，完成后提前终止投注
  * 4. 结果导向: 完成目标即停止，不强制消耗完所有局数
  * 5. 均匀分布: 每段结构相同，大奖分散在各段尾
  *
  * 分段策略:
  * - 分段大小: 10% (可配置)
- * - 段内结构: 前80%小奖/不中，后20%段尾大奖追赶
+ * - 段内结构: 前80%%小奖/不中，后20%段尾大奖追赶
  * - 追赶公式: neededMultiplier = gap/bet + 1
  */
 public class SineWaveMultiplierHelperV2 {
@@ -240,113 +240,118 @@ public class SineWaveMultiplierHelperV2 {
             allocateWins(n, requiredPayout, bigRates, smallRates, avgBigRate, avgSmallRate);
         }
 
-        /**
-         * V5 分段预规划中奖分配方案
-         *
-         * 分段策略:
-         * - 每段长度: segmentSize 局
-         * - 段内结构: 前80%小奖/不中，后20%段尾大奖
-         * - 段尾大奖用于追赶阶段目标
-         * - 尽量在80%局数前完成整体目标
-         */
-        private void planSegmentedWinDistribution() {
-            int n = Math.min(betList.size(), targetGames);
+    /**
+     * V5 分段预规划中奖分配方案
+     *
+     * 分段策略:
+     * - 每段长度: segmentSize 局
+     * - 段内结构: 前80%%小奖/不中，后20%段尾大奖
+     * - 段尾大奖用于追赶阶段目标
+     * - 尽量在80%%局数前完成整体目标
+     *
+     * 中奖率控制: 总中奖率不超过60%
+     */
+    private void planSegmentedWinDistribution() {
+        int n = Math.min(betList.size(), targetGames);
 
-            // 计算预估总投注和总目标
-            BigDecimal estimatedTotalBet = BigDecimal.ZERO;
-            for (int i = 0; i < n; i++) {
-                estimatedTotalBet = estimatedTotalBet.add(betList.get(i));
-            }
+        // 计算预估总投注
+        BigDecimal estimatedTotalBet = BigDecimal.ZERO;
+        for (int i = 0; i < n; i++) {
+            estimatedTotalBet = estimatedTotalBet.add(betList.get(i));
+        }
 
-            // 分析大奖池和小奖池
-            List<Double> bigRates = sortedRates.stream().filter(r -> r > BIG_WIN_THRESHOLD).sorted().toList();
-            List<Double> smallRates = sortedRates.stream().filter(r -> r > 0 && r <= BIG_WIN_THRESHOLD).sorted().toList();
+        log("[V5-分段] 总投注:%s | 总段数:%d | 每段局数:%d", estimatedTotalBet, totalSegments, segmentSize);
 
-            log("[V5-分段] 总投注:%s | 总段数:%d | 每段局数:%d", estimatedTotalBet, totalSegments, segmentSize);
+        // 中奖率控制: 严格限制在60%以内
+        // 计算可达的最大中奖次数 (60% of n)
+        int maxWins = (int) Math.floor(n * 0.60);
 
-            // 计算每段应该派出的金额（按比例分配整体目标）
-            // 正目标（系统赢）不需要派大奖，负目标（系统输）才需要段尾大奖追赶
-            BigDecimal totalRequiredPayout = estimatedTotalBet.subtract(targetSystemProfit);
-            BigDecimal payoutPerSegment = totalRequiredPayout.divide(new BigDecimal(totalSegments), 2, RoundingMode.HALF_UP);
+        // 估算需要的中奖次数来达成目标
+        BigDecimal totalRequiredPayout = estimatedTotalBet.subtract(targetSystemProfit);
+        int estimatedNeededWins = calculateNeededWins(n, totalRequiredPayout);
 
-            log("[V5-分段] 总需派奖:%s | 每段目标:%s | 正目标:%s", totalRequiredPayout, payoutPerSegment, isPositiveTarget());
+        // 使用较少的中奖次数（确保不超过60%，且足够达成目标）
+        int plannedTotalWins = Math.min(maxWins, Math.max(estimatedNeededWins, 2));
 
-            // 为每段规划中奖
-            int segmentTailStart = (int) (segmentSize * (1 - segmentTailPercent));  // 段尾开始位置
-            int segTailLength = segmentSize - segmentTailStart;  // 段尾长度
+        // 确保大奖占比在40-60%之间
+        int plannedBigWins = (int) Math.round(plannedTotalWins * 0.50); // 大约占50%
+        int plannedSmallWins = plannedTotalWins - plannedBigWins;
 
-            int bigWinsAllocated = 0;
-            int smallWinsAllocated = 0;
+        log("[V5-分段] 规划中奖: 总%d(大奖%d 小奖%d) | 估算需要:%d | 最大允许:%d",
+                plannedTotalWins, plannedBigWins, plannedSmallWins, estimatedNeededWins, maxWins);
 
-            for (int seg = 0; seg < totalSegments; seg++) {
-                int segStart = seg * segmentSize;
-                int segEnd = Math.min(segStart + segmentSize, n);
-                int segLength = segEnd - segStart;
+        // 为每段规划中奖 - 简化版：均匀分配
+        int winsPerSegment = (int) Math.ceil((double) plannedTotalWins / totalSegments);
+        int bigWinsPerSegment = (int) Math.ceil((double) plannedBigWins / totalSegments);
 
-                if (segLength <= 0) break;
+        int bigWinsAllocated = 0;
+        int smallWinsAllocated = 0;
 
-                // 计算本段的投注总额
-                BigDecimal segmentBetTotal = BigDecimal.ZERO;
-                for (int i = segStart; i < segEnd; i++) {
-                    segmentBetTotal = segmentBetTotal.add(betList.get(i));
-                }
+        // 第一步：分配大奖到各段的段尾位置
+        for (int seg = 0; seg < totalSegments && bigWinsAllocated < plannedBigWins; seg++) {
+            int segStart = seg * segmentSize;
+            int segEnd = Math.min(segStart + segmentSize, n);
+            int segLength = segEnd - segStart;
 
-                // 段尾位置（后20%）
-                int segTailStartIdx = segStart + segmentTailStart;
+            if (segLength <= 0) break;
 
-                log("[V5-分段] 段%d | 局数:%d-%d | 投注:%s | 段尾从第%d局开始",
-                        seg, segStart, segEnd - 1, segmentBetTotal, segTailStartIdx);
-
-                // 段内规划：
-                // - 正目标：不给大奖，只给少量小奖让玩家开心
-                // - 负目标：段尾（后20%）给大奖追赶，段内其他位置给极少小奖
-
-                if (isPositiveTarget()) {
-                    // 正目标模式：每段只给1个小奖（或不中）
-                    int segSmallWins = Math.min(1, segLength);  // 每段最多1个小奖
-                    for (int i = segStart; i < segEnd && segSmallWins > 0; i++) {
-                        if (winPlan[i] != -1) continue;
-                        winPlan[i] = 0;  // 小奖
-                        segSmallWins--;
-                        smallWinsAllocated++;
-                    }
-                } else {
-                    // 负目标模式：段尾给大奖，段内给1个小奖
-
-                    // 1. 首先在段尾分配大奖（每段2个大奖在最后位置）
-                    int segBigWins = Math.min(2, segTailLength);  // 每段2个大奖在段尾
-
-                    // 从段尾最末端开始向前分配大奖
-                    for (int i = segEnd - 1; i >= segTailStartIdx && segBigWins > 0; i--) {
-                        if (winPlan[i] != -1) continue;  // 已被分配
-                        winPlan[i] = 1;  // 大奖
-                        segBigWins--;
-                        bigWinsAllocated++;
-                    }
-
-                    // 2. 在段内（前80%）分配1个小奖
-                    int segSmallWins = 1;  // 每段1个小奖
-                    for (int i = segStart; i < segTailStartIdx && segSmallWins > 0; i++) {
-                        if (winPlan[i] != -1) continue;
-                        winPlan[i] = 0;  // 小奖
-                        segSmallWins--;
-                        smallWinsAllocated++;
-                    }
-                }
-            }
-
-            this.totalWinsPlanned = bigWinsAllocated + smallWinsAllocated;
-            this.bigWinsPlanned = bigWinsAllocated;
-            this.smallWinsPlanned = smallWinsAllocated;
-
-            log("[V5-分段] 规划完成 | 总中奖:%d | 大奖:%d | 小奖:%d",
-                    totalWinsPlanned, bigWinsPlanned, smallWinsPlanned);
-
-            // 负目标不打散（保持段尾大奖结构），正目标可以适当打散
-            if (!isPositiveTarget()) {
-                // 不打散，保持段尾大奖位置
+            // 每段段尾分配1个大奖
+            int allocIdx = segEnd - 1;  // 段尾最后一个位置
+            if (winPlan[allocIdx] == -1) {
+                winPlan[allocIdx] = 1;  // 大奖
+                bigWinsAllocated++;
             }
         }
+
+        // 第二步：分配小奖到剩余位置
+        for (int i = 0; i < n && smallWinsAllocated < plannedSmallWins; i++) {
+            if (winPlan[i] == -1) {
+                winPlan[i] = 0;  // 小奖
+                smallWinsAllocated++;
+            }
+        }
+
+        this.totalWinsPlanned = bigWinsAllocated + smallWinsAllocated;
+        this.bigWinsPlanned = bigWinsAllocated;
+        this.smallWinsPlanned = smallWinsAllocated;
+
+        log("[V5-分段] 规划完成 | 总中奖:%d | 大奖:%d | 小奖:%d",
+                totalWinsPlanned, bigWinsPlanned, smallWinsPlanned);
+    }
+
+    /**
+     * 计算需要的中奖次数
+     */
+    private int calculateNeededWins(int n, BigDecimal requiredPayout) {
+        if (requiredPayout.compareTo(BigDecimal.ZERO) <= 0) {
+            return 0;
+        }
+
+        // 计算平均投注
+        BigDecimal avgBet = BigDecimal.ZERO;
+        for (int i = 0; i < n; i++) {
+            avgBet = avgBet.add(betList.get(i));
+        }
+        avgBet = avgBet.divide(new BigDecimal(n), 2, RoundingMode.HALF_UP);
+
+        // 分析大奖池和小奖池
+        List<Double> bigRates = sortedRates.stream().filter(r -> r > BIG_WIN_THRESHOLD).sorted().toList();
+        List<Double> smallRates = sortedRates.stream().filter(r -> r > 0 && r <= BIG_WIN_THRESHOLD).sorted().toList();
+
+        // 计算平均中奖倍率（大奖50%，小奖50%）
+        double avgBigRate = bigRates.isEmpty() ? 50.0 : bigRates.stream().mapToDouble(Double::doubleValue).average().orElse(50.0);
+        double avgSmallRate = smallRates.isEmpty() ? 5.0 : smallRates.stream().mapToDouble(Double::doubleValue).average().orElse(5.0);
+        double weightedAvgRate = avgBigRate * 0.50 + avgSmallRate * 0.50;
+
+        // 估算需要的中奖次数
+        double avgBetD = avgBet.doubleValue();
+        int neededWins = (int) Math.ceil(requiredPayout.doubleValue() / (avgBetD * weightedAvgRate));
+
+        log("[V5-分段] 估算需要中奖:%d次 (派奖:%s, avgBet:%.1f, weightedAvg:%.1f)",
+                neededWins, requiredPayout, avgBetD, weightedAvgRate);
+
+        return neededWins;
+    }
 
         /**
          * 计算理论派奖金额
@@ -482,11 +487,15 @@ public class SineWaveMultiplierHelperV2 {
             gamesPlayed++;
             totalBet = totalBet.add(playerBet);
 
-            // V5: 提前终止检查 - 如果目标已达成，不再投注
-            if (targetAchievedEarly || isTargetAchieved()) {
+            // V5: 提前终止检查 - 必须达到80%%局数且目标已达成，才能停止
+            // 80%%阈值：确保至少玩到80%%的局数才允许完成目标
+            double earlyStopThreshold = 0.80;
+            boolean hasPlayedEnough = gamesPlayed >= targetGames * earlyStopThreshold;
+            if (hasPlayedEnough && isTargetAchieved()) {
                 targetAchievedEarly = true;
-                log("[V5] 目标已达成({}) | 停止投注 | 最终盈利:{}",
+                log("[V5] 目标已达成({}) | 已玩{}局/{}局({}) | 停止投注 | 最终盈利:{}",
                         getSystemProfit().subtract(targetSystemProfit).abs().compareTo(new BigDecimal("1")) <= 0 ? "精确" : "接近",
+                        gamesPlayed, targetGames, String.format("%.0f%%", (double)gamesPlayed / targetGames * 100),
                         getSystemProfit());
                 return 0.0;
             }
@@ -539,8 +548,9 @@ public class SineWaveMultiplierHelperV2 {
                             playerBet.multiply(new BigDecimal(multiplier)).setScale(MONEY_SCALE, RoundingMode.HALF_UP));
                 }
             } else {
-                // 无预规划，根据当前状态动态决定
-                multiplier = dynamicWinDecision(playerBet);
+                // 无预规划或无中奖计划 - 不中奖
+                multiplier = 0.0;
+                reason = "无计划不中";
             }
 
             updateDispersionTracking(multiplier != null ? multiplier : 0.0, currentGameIndex);
@@ -591,79 +601,77 @@ public class SineWaveMultiplierHelperV2 {
             }
         }
 
-        /**
-         * V5: 段尾追赶大奖 - 段内精算策略
-         *
-         * 新策略：不再追求一次性填平gap，而是在段尾给出一个合理的"冲刺"大奖
-         * 段尾大奖的目的是让本段的派奖接近段目标
-         *
-         * 策略：
-         * 1. 计算剩余派奖量与最大可能派奖量的比例
-         * 2. 如果剩余派奖量超过可达上限，选择最大可达倍率
-         * 3. 从Top10随机选择保证大奖多样性
-         */
-        private Double selectSegmentTailChaseMultiplier(BigDecimal playerBet) {
-            // 获取所有大奖（降序）
-            List<Double> bigRates = sortedRates.stream()
-                    .filter(r -> r > BIG_WIN_THRESHOLD)
-                    .sorted(Comparator.reverseOrder())
-                    .toList();
+    /**
+     * V5:段尾追赶大奖 - 随机选择，但限制覆盖缺口比例
+     *
+     * 新逻辑:
+     * - 缺口小（gapRatio <= 20）：从 3x~20x 之间随机选
+     * - 缺口大（gapRatio > 20）：从 20x~gapRatio×0.8 之间随机选
+     * - 每次最多覆盖缺口的 80%，避免一次性完成目标
+     */
+    private Double selectSegmentTailChaseMultiplier(BigDecimal playerBet) {
+        // 计算gap = 总投注 - 总派奖 - 目标盈利
+        BigDecimal gap = calculateProfitGap().abs();
 
-            if (bigRates.isEmpty()) {
-                return 50.0;
+        // gapRatio = 缺口需要的倍率（如果全用单次大奖覆盖需要多少倍）
+        double gapRatio = gap.divide(playerBet, 4, RoundingMode.HALF_UP).doubleValue();
+
+        // 每次最多覆盖缺口的 80%
+        double maxCoverRatio = 0.8;
+        double maxAllowedMultiplier = gapRatio * maxCoverRatio;
+
+        log("[V5-追赶] gap={} 投注={} gapRatio={:.2f} 最多覆盖80%={:.2f}",
+                gap, playerBet, gapRatio, maxAllowedMultiplier);
+
+        // 候选倍率列表
+        List<Double> candidates;
+
+        if (gapRatio <= 20) {
+            // 小缺口：从 3x~min(20x, maxAllowed) 随机选
+            double minRate = 3.0;
+            double maxRate = Math.min(20.0, maxAllowedMultiplier);
+
+            if (maxRate < minRate) {
+                // 连3倍都覆盖不了80%，这次不给大奖
+                log("[V5-追赶] 缺口太小(gapRatio={:.2f})，不给大奖", gapRatio);
+                return 0.0;
             }
 
-            int topN = Math.min(15, bigRates.size());
-
-            // 计算可达性
-            BigDecimal remainingProfitNeeded = calculateProfitGap().abs();
-            if (remainingProfitNeeded.compareTo(BigDecimal.ZERO) <= 0) {
-                // 已达标，给一个安全的中大奖
-                log("[V5-追赶] 已达标，给予安全中大奖");
-                return bigRates.get(random.nextInt(Math.min(5, bigRates.size())));
-            }
-
-            // 计算最大可能派奖（当前bet × 最大倍率）
-            BigDecimal maxPossiblePayoutThisRound = playerBet.multiply(new BigDecimal(bigRates.get(0)));
-            BigDecimal requiredPayout = totalBet.subtract(targetSystemProfit);
-            BigDecimal currentPayout = totalPayout;
-            BigDecimal remainingPayoutNeeded = requiredPayout.subtract(currentPayout);
-
-            log("[V5-追赶] 需派奖:{} | 本局最大可达:{}", remainingPayoutNeeded, maxPossiblePayoutThisRound);
-
-            // 如果剩余需要的派奖量超过单局最大可达，从TopN随机选择（不再固定最大奖）
-            if (remainingPayoutNeeded.compareTo(maxPossiblePayoutThisRound) > 0) {
-                // 需要太多，从Top10随机选择（保持随机性，避免总是110x）
-                log("[V5-追赶] 需大于单局上限，从Top{}随机选择", topN);
-                List<Double> topCandidates = bigRates.subList(0, topN);
-                return topCandidates.get(random.nextInt(topCandidates.size()));
-            }
-
-            // 剩余派奖量在可达范围内，选择合适的大奖
-            List<Double> candidates = bigRates.stream()
-                    .filter(r -> {
-                        BigDecimal payout = playerBet.multiply(new BigDecimal(r));
-                        return payout.compareTo(remainingPayoutNeeded) >= 0;
-                    })
+            candidates = sortedRates.stream()
+                    .filter(r -> r >= minRate && r <= maxRate)
                     .sorted()
-                    .toList();
+                    .collect(Collectors.toList());
 
-            if (candidates.isEmpty()) {
-                // 没有刚好够的，选择略大的
-                candidates = bigRates.subList(0, topN);
-            }
+            log("[V5-追赶] 小缺口模式，候选: 3x~{:.2f}x，共{}个", maxRate, candidates.size());
+        } else {
+            // 大缺口：从 20x~min(gapRatio×0.8, maxAvailable) 随机选
+            double minRate = 20.0;
+            double maxRate = Math.min(maxAllowedMultiplier, sortedRates.get(sortedRates.size() - 1));
 
-            // 从候选中随机选择
-            int idx = random.nextInt(candidates.size());
-            log("[V5-追赶] 选择合适大奖:{}", candidates.get(idx));
-            return candidates.get(idx);
+            candidates = sortedRates.stream()
+                    .filter(r -> r >= minRate && r <= maxRate)
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            log("[V5-追赶] 大缺口模式，候选: 20x~{:.2f}x，共{}个", maxRate, candidates.size());
         }
 
-        /**
-         * V5: 从Top N大奖中随机选择（保证随机性）
-         */
-        private Double selectRandomTopBigWin(int topN) {
-            // 获取所有大奖并降序排列
+        // 随机选择一个候选倍率
+        if (candidates.isEmpty()) {
+            log("[V5-追赶] 无合适候选倍率，返回0（不中）");
+            return 0.0;
+        }
+
+        Double selected = candidates.get(random.nextInt(candidates.size()));
+        log("[V5-追赶] 随机选中倍率:{}", selected);
+        return selected;
+    }
+
+         /**
+          * V5: 从Top N大奖中随机选择（保证随机性）
+          */
+         private Double selectRandomTopBigWin(int topN) {
+             // 获取所有大奖并降序排列
             List<Double> bigRates = sortedRates.stream()
                     .filter(r -> r > BIG_WIN_THRESHOLD)
                     .sorted(Comparator.reverseOrder())
@@ -1020,62 +1028,40 @@ public class SineWaveMultiplierHelperV2 {
 
         int n = 30;
 
-        // TC-01: bet=4, target=-1200 (可达)
-        System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-01: 恒定投注 bet=4, target=-1200 (可达目标)");
-        System.out.println("═".repeat(70));
-        runTestConstant(n, new BigDecimal("-1200"), rates, VibeType.INTENSE, 4);
+        // ========== 玩家赢场景测试 (目标为负) ==========
+        // 关键：目标必须数学上可达
+        // 可达条件：总投注 + |目标| <= 总投注 × 最大倍率
+        // 即：目标绝对值 <= 总投注 × (最大倍率 - 1)
 
-        // TC-02: bet=4, target=-5000 (不可达，调整中奖率)
+        // TC-01: bet=4, n=30, 总投注=120, 目标=-300 (很容易达成)
         System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-02: 恒定投注 bet=4, target=-5000 (需提高中奖率)");
+        System.out.println("║ TC-01: 恒定投注 bet=4, target=-300 (玩家赢)");
         System.out.println("═".repeat(70));
-        runTestConstant(n, new BigDecimal("-5000"), rates, VibeType.INTENSE, 4);
+        runTestConstant(n, new BigDecimal("-300"), rates, VibeType.INTENSE, 4);
 
-        // TC-03: bet=100, target=-5000
+        // TC-02: bet=4, n=30, 总投注=120, 目标=-400 (可达)
         System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-03: 恒定投注 bet=100, target=-5000");
+        System.out.println("║ TC-02: 恒定投注 bet=4, target=-400 (玩家赢)");
         System.out.println("═".repeat(70));
-        runTestConstant(n, new BigDecimal("-5000"), rates, VibeType.INTENSE, 100);
+        runTestConstant(n, new BigDecimal("-400"), rates, VibeType.INTENSE, 4);
 
-        // TC-04: bet=4→500, target=-10000
+        // TC-03: bet=10, n=30, 总投注=300, 目标=-800 (可达)
         System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-04: 递增投注 bet=4→500, target=-10000");
+        System.out.println("║ TC-03: 恒定投注 bet=10, target=-800 (玩家赢)");
         System.out.println("═".repeat(70));
-        runTestVariableBet(n, new BigDecimal("-10000"), rates, VibeType.INTENSE, true);
+        runTestConstant(n, new BigDecimal("-800"), rates, VibeType.INTENSE, 10);
 
-        // TC-05: bet=500→4, target=-10000
+        // TC-04: bet=10, n=30, 总投注=300, 目标=-1000 (可达)
         System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-05: 递减投注 bet=500→4, target=-10000");
+        System.out.println("║ TC-04: 恒定投注 bet=10, target=-1000 (玩家赢)");
         System.out.println("═".repeat(70));
-        runTestVariableBet(n, new BigDecimal("-10000"), rates, VibeType.INTENSE, false);
+        runTestConstant(n, new BigDecimal("-1000"), rates, VibeType.INTENSE, 10);
 
-        // TC-06: bet=4, target=+1200 (系统赢)
+        // TC-05: bet=10, n=30, target=-1500 (边界)
         System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ TC-06: 恒定投注 bet=4, target=+1200 (系统赢)");
+        System.out.println("║ TC-05: 恒定投注 bet=10, target=-1500 (玩家赢)");
         System.out.println("═".repeat(70));
-        runTestConstant(n, new BigDecimal("1200"), rates, VibeType.INTENSE, 4);
-
-        // ========== V5 分段模式测试 ==========
-        int nV5 = 50;  // 更多局数以便观察分段效果
-
-        // V5-01: bet=10, target=-5000, 分段模式 (段尾爆大奖)
-        System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ V5-01: 分段模式 bet=10, target=-5000 (段尾追赶)");
-        System.out.println("═".repeat(70));
-        runTestSegmented(nV5, new BigDecimal("-5000"), rates, VibeType.INTENSE, 10, true);
-
-        // V5-02: bet=10, target=-2000, 分段模式 (应提前达成)
-        System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ V5-02: 分段模式 bet=10, target=-2000 (应提前达成)");
-        System.out.println("═".repeat(70));
-        runTestSegmented(nV5, new BigDecimal("-2000"), rates, VibeType.INTENSE, 10, true);
-
-        // V5-03: 关闭分段模式对比
-        System.out.println("\n" + "═".repeat(70));
-        System.out.println("║ V5-03: 关闭分段 bet=10, target=-5000 (对比)");
-        System.out.println("═".repeat(70));
-        runTestSegmented(nV5, new BigDecimal("-5000"), rates, VibeType.INTENSE, 10, false);
+        runTestConstant(n, new BigDecimal("-1500"), rates, VibeType.INTENSE, 10);
     }
 
     private static void runTestSegmented(int n, BigDecimal target, Map<Double, Integer> rates,
@@ -1096,17 +1082,27 @@ public class SineWaveMultiplierHelperV2 {
             profits.add(c.getSystemProfit());
             actualGamesPlayed++;
 
-            // V5: 如果提前达成目标，停止投注
+            // 达到80%%局数且目标已达成，才能停止
             BigDecimal profit = c.getSystemProfit();
-            boolean achieved = (target.compareTo(BigDecimal.ZERO) < 0 && profit.compareTo(target) <= 0)
-                    || (target.compareTo(BigDecimal.ZERO) >= 0 && profit.compareTo(target) >= 0);
-            if (achieved && i < n - 1) {
-                log("[V5] 提前达成目标，停止投注");
+            boolean achieved = isTargetAchieved(profit, target);
+            if (achieved && i >= n * 0.80) {
+                log("[V5] 目标达成且已达80%%局数，停止投注");
                 break;
             }
         }
 
         printResult(c, multipliers, profits, target, actualGamesPlayed);
+    }
+
+    // 辅助方法：判断目标是否达成
+    private static boolean isTargetAchieved(BigDecimal profit, BigDecimal target) {
+        if (target.compareTo(BigDecimal.ZERO) < 0) {
+            // 负目标（系统输）：盈利 <= 目标（如-5500 <= -5000）
+            return profit.compareTo(target) <= 0;
+        } else {
+            // 正目标（系统赢）：盈利 >= 目标（如1300 >= 1200）
+            return profit.compareTo(target) >= 0;
+        }
     }
 
     private static void runTestConstant(int n, BigDecimal target, Map<Double, Integer> rates,
@@ -1118,13 +1114,23 @@ public class SineWaveMultiplierHelperV2 {
         List<Double> multipliers = new ArrayList<>();
         List<BigDecimal> profits = new ArrayList<>();
 
+        int actualGamesPlayed = 0;
         for (int i = 0; i < n; i++) {
             Double mult = c.calculateMultiplier(betList.get(i));
             multipliers.add(mult);
             profits.add(c.getSystemProfit());
+            actualGamesPlayed++;
+
+            // 达到80%%局数且目标已达成，才能停止
+            BigDecimal profit = c.getSystemProfit();
+            boolean achieved = isTargetAchieved(profit, target);
+            if (achieved && i >= n * 0.80) {
+                log("[V5] 目标达成且已达80%%局数，停止投注");
+                break;
+            }
         }
 
-        printResult(c, multipliers, profits, target);
+        printResult(c, multipliers, profits, target, actualGamesPlayed);
     }
 
     private static void runTestVariableBet(int n, BigDecimal target, Map<Double, Integer> rates,
@@ -1140,13 +1146,23 @@ public class SineWaveMultiplierHelperV2 {
         List<Double> multipliers = new ArrayList<>();
         List<BigDecimal> profits = new ArrayList<>();
 
+        int actualGamesPlayed = 0;
         for (int i = 0; i < n; i++) {
             Double mult = c.calculateMultiplier(betList.get(i));
             multipliers.add(mult);
             profits.add(c.getSystemProfit());
+            actualGamesPlayed++;
+
+            // 达到80%%局数且目标已达成，才能停止
+            BigDecimal profit = c.getSystemProfit();
+            boolean achieved = isTargetAchieved(profit, target);
+            if (achieved && i >= n * 0.80) {
+                log("[V5] 目标达成且已达80%%局数，停止投注");
+                break;
+            }
         }
 
-        printResult(c, multipliers, profits, target);
+        printResult(c, multipliers, profits, target, actualGamesPlayed);
     }
 
     private static void printResult(Controller c, List<Double> multipliers, List<BigDecimal> profits, BigDecimal target) {
@@ -1183,8 +1199,10 @@ public class SineWaveMultiplierHelperV2 {
         boolean winRateOK = winRate <= 0.60;
         boolean bigWinRatioOK = totalWins == 0 || (bigWinRatio >= 0.40 && bigWinRatio <= 0.60);
         boolean deviationOK = deviation <= 10.0;
-        boolean targetDirectionOK = (target.compareTo(BigDecimal.ZERO) >= 0 && actualProfit.compareTo(target) >= 0)
-                || (target.compareTo(BigDecimal.ZERO) < 0 && actualProfit.compareTo(target) <= 0);
+        // 目标方向：对于负目标(系统输)，盈利应为负；对于正目标(系统赢)，盈利应为正
+        boolean targetDirectionOK = (target.compareTo(BigDecimal.ZERO) < 0 && actualProfit.compareTo(BigDecimal.ZERO) < 0)
+                || (target.compareTo(BigDecimal.ZERO) > 0 && actualProfit.compareTo(BigDecimal.ZERO) > 0)
+                || (target.compareTo(BigDecimal.ZERO) == 0 && actualProfit.compareTo(BigDecimal.ZERO) == 0);
 
         boolean intenseBigOK = c.getBigWinStdDev() > 15;
         boolean intenseSmallOK = c.getSmallWinStdDev() > 3;
@@ -1198,7 +1216,7 @@ public class SineWaveMultiplierHelperV2 {
         System.out.printf("  [%s] 中奖率≤60%% (%.1f%%)%n", winRateOK ? "✓" : "✗", winRate * 100);
         System.out.printf("  [%s] 大奖占比40-60%% (%.1f%%)%n", bigWinRatioOK ? "✓" : "✗", bigWinRatio * 100);
         System.out.printf("  [%s] 偏差≤10%% (%.2f%%)%n", deviationOK ? "✓" : "✗", deviation);
-        System.out.printf("  [%s] 目标方向正确%n", targetDirectionOK ? "✓" : "✗");
+        System.out.printf("  [%s] 目标方向正确 (盈利:%s 目标:%s)%n", targetDirectionOK ? "✓" : "✗", actualProfit, target);
         System.out.printf("  [%s] 波动性符合%s%n", vibeMatch ? "✓" : "✗", c.getVibeType());
 
         boolean allPassed = winRateOK && bigWinRatioOK && deviationOK && targetDirectionOK;
@@ -1249,8 +1267,10 @@ public class SineWaveMultiplierHelperV2 {
         boolean winRateOK = actualGamesPlayed > 0 && (double) totalWins / actualGamesPlayed <= 0.60;
         boolean bigWinRatioOK = totalWins == 0 || (bigWinRatio >= 0.40 && bigWinRatio <= 0.60);
         boolean deviationOK = deviation <= 10.0;
-        boolean targetDirectionOK = (target.compareTo(BigDecimal.ZERO) >= 0 && actualProfit.compareTo(target) >= 0)
-                || (target.compareTo(BigDecimal.ZERO) < 0 && actualProfit.compareTo(target) <= 0);
+        // 目标方向：对于负目标(系统输)，盈利应为负；对于正目标(系统赢)，盈利应为正
+        boolean targetDirectionOK = (target.compareTo(BigDecimal.ZERO) < 0 && actualProfit.compareTo(BigDecimal.ZERO) < 0)
+                || (target.compareTo(BigDecimal.ZERO) > 0 && actualProfit.compareTo(BigDecimal.ZERO) > 0)
+                || (target.compareTo(BigDecimal.ZERO) == 0 && actualProfit.compareTo(BigDecimal.ZERO) == 0);
 
         boolean intenseBigOK = c.getBigWinStdDev() > 15;
         boolean intenseSmallOK = c.getSmallWinStdDev() > 3;
@@ -1264,7 +1284,7 @@ public class SineWaveMultiplierHelperV2 {
         System.out.printf("  [%s] 中奖率≤60%% (%.1f%%)%n", winRateOK ? "✓" : "✗", actualGamesPlayed > 0 ? (double) totalWins / actualGamesPlayed * 100 : 0);
         System.out.printf("  [%s] 大奖占比40-60%% (%.1f%%)%n", bigWinRatioOK ? "✓" : "✗", bigWinRatio * 100);
         System.out.printf("  [%s] 偏差≤10%% (%.2f%%)%n", deviationOK ? "✓" : "✗", deviation);
-        System.out.printf("  [%s] 目标方向正确%n", targetDirectionOK ? "✓" : "✗");
+        System.out.printf("  [%s] 目标方向正确 (盈利:%s 目标:%s)%n", targetDirectionOK ? "✓" : "✗", actualProfit, target);
         System.out.printf("  [%s] 波动性符合%s%n", vibeMatch ? "✓" : "✗", c.getVibeType());
 
         boolean allPassed = winRateOK && bigWinRatioOK && deviationOK && targetDirectionOK;
