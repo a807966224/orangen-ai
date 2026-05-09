@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中奖倍率分布图</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .stat-card .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-card .sub {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .chart-container {
+            padding: 30px;
+            background: white;
+        }
+
+        #chart {
+            width: 100%;
+            height: 550px;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                padding: 20px;
+            }
+
+            .stat-card .value {
+                font-size: 24px;
+            }
+
+            .chart-container {
+                padding: 20px;
+            }
+
+            #chart {
+                height: 400px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🎰 中奖倍率分布图</h1>
+        <p>基于 100 局游戏的中奖倍率数据分析（0 表示未中奖）</p>
+    </div>
+
+    <div class="stats-grid" id="stats"></div>
+
+    <div class="chart-container">
+        <div id="chart"></div>
+    </div>
+
+    <div class="controls">
+        <button onclick="showAll()">📊 显示全部</button>
+        <button onclick="showHighMultiplier()">🔥 高倍率标注</button>
+    </div>
+</div>
+
+<script>
+    // 中奖倍率数据（key: 局数, value: 倍率, 0 表示未中奖）
+    const multiplierData =
+        {"1":25.5,"2":26.0,"3":0.0,"4":0.0,"5":27.0,"6":25.3,"7":24.3,"8":22.0,"9":25.0,"10":25.0,"11":24.5,"12":0.0,"13":0.0,"14":0.0,"15":0.0,"16":27.0,"17":27.0,"18":0.0,"19":25.3,"20":0.0,"21":25.3,"22":27.0,"23":0.0,"24":17.0,"25":26.0,"26":0.0,"27":0.0,"28":0.0,"29":27.0,"30":0.0,"31":25.3,"32":0.0,"33":0.0,"34":0.0,"35":27.0,"36":0.0,"37":0.0,"38":0.0,"39":26.5,"40":0.0,"41":0.0,"42":0.0,"43":0.0,"44":0.0,"45":31.0,"46":31.5,"47":0.0,"48":30.5,"49":30.3,"50":0.0,"51":31.5,"52":30.0,"53":0.0,"54":30.0,"55":27.0,"56":26.0,"57":0.0,"58":0.0,"59":0.0,"60":0.0,"61":32.0,"62":32.0,"63":0.0,"64":0.0,"65":30.6,"66":0.0,"67":0.0,"68":31.5,"69":32.0,"70":30.6,"71":30.6,"72":0.0,"73":0.0,"74":25.0,"75":31.5,"76":30.6,"77":0.0,"78":30.5,"79":0.0,"80":30.6,"81":0.0,"82":0.0,"83":35.3,"84":0.0,"85":0.0,"86":0.0,"87":0.0,"88":41.0,"89":0.0,"90":40.0,"91":0.0,"92":0.0,"93":0.0,"94":55.0,"95":0.0,"96":0.0,"97":0.0,"98":81.3,"99":55.0,"100":41.0}
+    ;
+
+    // 计算统计数据
+    function calculateStats() {
+        let winCount = 0;
+        let totalMultiplier = 0;
+        let maxMultiplier = 0;
+        let maxMultiplierRound = 0;
+        let highMultiplierCount = 0; // 倍率 >= 10
+        let mediumMultiplierCount = 0; // 倍率 >= 2 && < 10
+        let lowMultiplierCount = 0; // 倍率 > 0 && < 2
+        let winRounds = [];
+
+        for (let i = 1; i <= 100; i++) {
+            const multiplier = multiplierData[i];
+            if (multiplier > 0) {
+                winCount++;
+                totalMultiplier += multiplier;
+                winRounds.push(i);
+                if (multiplier > maxMultiplier) {
+                    maxMultiplier = multiplier;
+                    maxMultiplierRound = i;
+                }
+                if (multiplier >= 10) highMultiplierCount++;
+                else if (multiplier >= 2) mediumMultiplierCount++;
+                else if (multiplier > 0) lowMultiplierCount++;
+            }
+        }
+
+        const avgMultiplier = winCount > 0 ? (totalMultiplier / winCount).toFixed(2) : 0;
+
+        return {
+            winCount,
+            winRate: ((winCount / 100) * 100).toFixed(1),
+            totalMultiplier: totalMultiplier.toFixed(1),
+            avgMultiplier,
+            maxMultiplier,
+            maxMultiplierRound,
+            highMultiplierCount,
+            mediumMultiplierCount,
+            lowMultiplierCount
+        };
+    }
+
+    // 渲染统计卡片
+    function renderStats() {
+        const stats = calculateStats();
+        const statsHtml = `
+                <div class="stat-card">
+                    <div class="label">🎯 中奖次数</div>
+                    <div class="value">${stats.winCount}</div>
+                    <div class="sub">共 100 局</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">📈 中奖率</div>
+                    <div class="value">${stats.winRate}%</div>
+                    <div class="sub">整体概率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">💰 累计倍率</div>
+                    <div class="value">${stats.totalMultiplier}</div>
+                    <div class="sub">总倍率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">⭐ 平均倍率</div>
+                    <div class="value">${stats.avgMultiplier}</div>
+                    <div class="sub">中奖平均倍率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">🏆 最高倍率</div>
+                    <div class="value">${stats.maxMultiplier}</div>
+                    <div class="sub">第 ${stats.maxMultiplierRound} 局</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">📊 倍率分布</div>
+                    <div class="value" style="font-size: 18px;">高:${stats.highMultiplierCount} 中:${stats.mediumMultiplierCount} 低:${stats.lowMultiplierCount}</div>
+                    <div class="sub">≥10 / 2-10 / <2</div>
+                </div>
+            `;
+        document.getElementById('stats').innerHTML = statsHtml;
+    }
+
+    let currentChart = null;
+
+    // 初始化图表
+    function initChart(type = 'all') {
+        const chartDom = document.getElementById('chart');
+        if (currentChart) {
+            currentChart.dispose();
+        }
+        currentChart = echarts.init(chartDom);
+
+        const games = Array.from({length: 100}, (_, i) => i + 1);
+        const multipliers = games.map(g => multiplierData[g]);
+
+        // 标记高倍率点（倍率 >= 10）
+        const highMultiplierPoints = [];
+        const highMultiplierValues = [];
+        games.forEach((game, index) => {
+            if (multiplierData[game] >= 10) {
+                highMultiplierPoints.push(game);
+                highMultiplierValues.push(multiplierData[game]);
+            }
+        });
+
+        // 根据是否高倍率决定颜色
+        const barColors = multipliers.map(m => {
+            if (m >= 20) return '#f5576c';
+            if (m >= 10) return '#ff9800';
+            if (m > 0) return '#667eea';
+            return '#e0e0e0';
+        });
+
+        const option = {
+            title: {
+                text: '中奖倍率分布图',
+                left: 'center',
+                top: 0,
+                textStyle: {
+                    fontSize: 16,
+                    fontWeight: 'normal',
+                    color: '#333'
+                }
+            },
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'shadow'
+                },
+                formatter: function(params) {
+                    if (params.length === 0) return '';
+                    const value = params[0].value;
+                    const round = params[0].axisValue;
+                    if (value === 0) {
+                        return `第 ${round} 局<br/>😢 未中奖<br/>倍率: 0`;
+                    }
+                    let medal = '';
+                    if (value >= 20) medal = '🏆 超高倍率！';
+                    else if (value >= 10) medal = '🎉 高倍率！';
+                    else medal = '✨ 中奖';
+                    return `第 ${round} 局<br/>${medal}<br/>🎁 中奖倍率: ${value} 倍`;
+                }
+            },
+            legend: {
+                data: ['中奖倍率', '高倍率 (≥10)'],
+                top: 35,
+                left: 'center',
+                icon: 'circle',
+                itemWidth: 10,
+                itemHeight: 10
+            },
+            grid: {
+                left: '8%',
+                right: '8%',
+                bottom: '8%',
+                top: '15%',
+                containLabel: true
+            },
+            xAxis: {
+                name: '游戏局数',
+                nameLocation: 'middle',
+                nameGap: 35,
+                type: 'category',
+                data: games,
+                axisLabel: {
+                    rotate: 45,
+                    interval: 10,
+                    fontSize: 10
+                },
+                axisLine: {
+                    lineStyle: {
+                        color: '#999'
+                    }
+                }
+            },
+            yAxis: {
+                name: '中奖倍率',
+                nameLocation: 'middle',
+                nameGap: 45,
+                type: 'value',
+                min: 0,
+                axisLabel: {
+                    formatter: '{value} 倍'
+                },
+                splitLine: {
+                    lineStyle: {
+                        type: 'dashed',
+                        color: '#e0e0e0'
+                    }
+                }
+            },
+            toolbox: {
+                feature: {
+                    saveAsImage: {title: '保存图片'},
+                    restore: {title: '重置'},
+                    zoom: {title: {zoom: '区域缩放', back: '还原'}}
+                },
+                right: 20,
+                top: 20
+            },
+            series: [
+                {
+                    name: '中奖倍率',
+                    type: 'bar',
+                    data: multipliers,
+                    itemStyle: {
+                        color: function(params) {
+                            const value = params.value;
+                            if (value >= 20) return '#f5576c';
+                            if (value >= 10) return '#ff9800';
+                            if (value > 0) return '#667eea';
+                            return '#e0e0e0';
+                        },
+                        borderRadius: [4, 4, 0, 0],
+                        shadowColor: 'rgba(0,0,0,0.1)',
+                        shadowBlur: 2
+                    },
+                    label: {
+                        show: type === 'all',
+                        position: 'top',
+                        formatter: function(params) {
+                            if (params.value === 0) return '';
+                            if (params.value >= 10) return params.value;
+                            return '';
+                        },
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        color: '#ff9800'
+                    },
+                    barWidth: '60%'
+                },
+                {
+                    name: '高倍率 (≥10)',
+                    type: 'scatter',
+                    data: highMultiplierPoints.map((round, idx) => [round, highMultiplierValues[idx]]),
+                    symbolSize: function(value) {
+                        if (value[1] >= 20) return 20;
+                        if (value[1] >= 15) return 16;
+                        return 12;
+                    },
+                    symbol: 'circle',
+                    itemStyle: {
+                        color: '#ff9800',
+                        borderColor: '#fff',
+                        borderWidth: 2,
+                        shadowColor: 'rgba(255,152,0,0.5)',
+                        shadowBlur: 8
+                    },
+                    label: {
+                        show: type === 'all',
+                        formatter: function(params) {
+                            return params.value[1] + '倍';
+                        },
+                        position: 'top',
+                        offset: [0, 10],
+                        fontSize: 11,
+                        fontWeight: 'bold',
+                        color: '#ff9800'
+                    },
+                    tooltip: {
+                        formatter: function(params) {
+                            return `第 ${params.value[0]} 局<br/>🎉 高倍率: ${params.value[1]} 倍`;
+                        }
+                    }
+                }
+            ]
+        };
+
+        currentChart.setOption(option);
+        window.addEventListener('resize', () => currentChart && currentChart.resize());
+    }
+
+    function showAll() {
+        initChart('all');
+    }
+
+    function showHighMultiplier() {
+        initChart('high');
+    }
+
+    // 页面加载时渲染
+    renderStats();
+    initChart('all');
+</script>
+</body>
+</html>
