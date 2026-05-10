@@ -1,6 +1,7 @@
 # Orange AI
 
 > 你的 AI 伙伴，随时待命
+> https://help.router-for.me/cn/configuration/provider/gemini-cli.html
 
 轻量优雅的 AI 对话平台，Kotlin + Spring Boot 后端 + 原生前端。
 
