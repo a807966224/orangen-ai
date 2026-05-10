@@ -1,4 +1,3 @@
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,7 +54,8 @@ public class SineWaveMultiplierHelperV2 {
         private int winCount;
         private BigDecimal totalBet;
         private BigDecimal totalPayout;
-        private final Random random;
+        private final SplittableRandom random;
+        private static final Long SEED = 123456789L;
 
         public Controller(int targetGames, BigDecimal targetSystemProfit,
                           Map<Double, Integer> rateWeightMap, VibeType vibeType,
@@ -70,7 +70,7 @@ public class SineWaveMultiplierHelperV2 {
             this.winCount = winCount;
             this.totalBet = totalBet != null ? totalBet : BigDecimal.ZERO;
             this.totalPayout = totalPayout != null ? totalPayout : BigDecimal.ZERO;
-            this.random = new Random();
+            this.random = new SplittableRandom(SEED + gamesPlayed + System.currentTimeMillis());
             this.vibeType = vibeType;
 
             this.sortedRates = rateWeightMap.keySet().stream().sorted().toList();
@@ -97,7 +97,6 @@ public class SineWaveMultiplierHelperV2 {
             log.info("[SineWave] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             log.info("[SineWave] 第{}/{}局 | 本局投注:{}", gamesPlayed, targetGames, playerBet);
 
-
             // 当前系统输赢金额: 总投注金额 - 总派奖金额, 如果为正数则代表系统赢, 如果为负数则代表玩家赢
             BigDecimal currentProfit = totalBet.subtract(totalPayout);
             int remaining = targetGames - gamesPlayed + 1;
@@ -122,24 +121,31 @@ public class SineWaveMultiplierHelperV2 {
             log.info("[SineWave] 📊 距目标差:{} | 剩余局数:{} | 基础派奖:{}", gap, remaining, payoutNeeded);
 
             // 0. 总中奖率45%
+            for (int i = 0; i < 1000 + random.nextInt(2000); i++) {
+                random.nextDouble();
+            }
             var canWinRandom = random.nextDouble();
             boolean needWin = payoutNeeded.compareTo(gap
                     .abs().multiply(BigDecimal.valueOf(0.3))) > 0;
-            if (needWin) {
-                canWinRandom = 0.4;
-                log.info("[SineWave] 🎉 需要触发中奖 | 已经相差过多:{}, {}", payoutNeeded, gap
-                        .abs().multiply(BigDecimal.valueOf(0.3)));
+            if (needWin && canWinRandom > 0.45) {
+                canWinRandom -= 0.25;
+                log.info("[SineWave] 🎉 需要触发中奖 | 已经相差过多, 基础应派奖: {}, 相差金额: {}, 矫正后是否中奖: {}", payoutNeeded, gap
+                        .abs().multiply(BigDecimal.valueOf(0.3)), canWinRandom < 0.45);
             }
             if (canWinRandom < 0.45) {
+                double progress = (double) gamesPlayed / targetGames;
+                // 增加小奖中奖率
+                double baseMultiplier = this.vibeType.valleyWinRate * targetGames * progress;
+                if (progress < 0.3) {
+                    baseMultiplier = 3 * this.vibeType.valleyWinRate * targetGames * progress;
+
+                }
                 val selectExactMultiplierRes = this.selectExactMultiplier(
                         playerBet,
-                        payoutNeeded.multiply(
-                                BigDecimal.ONE
-//                                BigDecimal.valueOf(1 + this.calculateDynamicWinRate(gamesPlayed))
-                                // 局数越多，后期可能翻倍越高
-//                                BigDecimal.valueOf(gamesPlayed * this.vibeType.valleyWinRate)
-
-                        )
+                        canWinRandom < 0.20 ? payoutNeeded :
+                                payoutNeeded.multiply(
+                                        BigDecimal.valueOf(baseMultiplier)
+                                )
                 );
                 this.setWinCount(winCount + 1);
                 this.setTotalPayout(
@@ -149,8 +155,12 @@ public class SineWaveMultiplierHelperV2 {
                                         .setScale(MONEY_SCALE, RoundingMode.HALF_UP)
                         )
                 );
-                log.info("[SineWave] ✨ 普奖 | 选中倍率:{}", selectExactMultiplierRes);
-                log.info("[SineWave]    累计投注:{} | 累计派奖:{} | 系统盈利:{}", totalBet, totalPayout, totalBet.subtract(totalPayout));
+                log.info("[SineWave] ✨ 普奖 | 选中倍率:{}   累计投注:{} | 累计派奖:{} | 系统盈利:{}"
+                        , selectExactMultiplierRes
+                        , totalBet
+                        , totalPayout
+                        , totalBet.subtract(totalPayout)
+                );
                 return selectExactMultiplierRes;
             }
 
@@ -179,7 +189,7 @@ public class SineWaveMultiplierHelperV2 {
             // 收集所有不超过目标的候选倍率
             List<Double> candidates = new ArrayList<>();
             for (Double rate : sortedRates) {
-                if (rate <= target && rate >= target * 0.6) {
+                if (rate <= target) {
                     candidates.add(rate);
                 }
             }
@@ -203,17 +213,17 @@ public class SineWaveMultiplierHelperV2 {
             }
             List<Double> sorted = bigRates.stream()
                     .sorted(Comparator.reverseOrder())
-                    .limit(5)
+                    .limit(10)
                     .toList();
             double roll = random.nextDouble();
-            if (roll < 0.25 || sorted.size() == 1) {
-                return sorted.getFirst();
-            } else if (roll < 0.35 || sorted.size() == 2) {
-                return sorted.get(1);
-            } else if (roll < 0.40 || sorted.size() == 3) {
+            if (roll < 0.25 || sorted.size() <= 2) {
                 return sorted.get(Math.min(2, sorted.size() - 1));
-            } else if (roll < 0.55 || sorted.size() == 4) {
-                return sorted.get(Math.min(3, sorted.size() - 1));
+            } else if (roll < 0.35 || sorted.size() <= 4) {
+                return sorted.get(Math.min(4, sorted.size() - 1));
+            } else if (roll < 0.40 || sorted.size() <= 6) {
+                return sorted.get(Math.min(6, sorted.size() - 1));
+            } else if (roll < 0.55 || sorted.size() <= 8) {
+                return sorted.get(Math.min(8, sorted.size() - 1));
             } else {
                 return sorted.getLast();
             }
@@ -285,11 +295,6 @@ public class SineWaveMultiplierHelperV2 {
     }
 
 
-
-
-
-
-
     // --------------------------------------------------------------------------------------------------------
 
 
@@ -310,7 +315,7 @@ public class SineWaveMultiplierHelperV2 {
                 .entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        BigDecimal target = new BigDecimal("-5000");
+        BigDecimal target = new BigDecimal("-1000");
         int targetSpinNum = 100;
 
         runTestIntense(targetSpinNum, target, rates, VibeType.INTENSE);

@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>中奖倍率分布图</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js">
+    </script>
     <style>
         * {
             margin: 0;
@@ -27,7 +28,7 @@
             width: 100%;
             background: white;
             border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
             animation: fadeIn 0.5s ease-in-out;
         }
@@ -75,13 +76,13 @@
             border-radius: 15px;
             padding: 20px;
             text-align: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
         .stat-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
         }
 
         .stat-card .label {
@@ -174,7 +175,7 @@
 <div class="container">
     <div class="header">
         <h1>🎰 中奖倍率分布图</h1>
-        <p>基于 100 局游戏的中奖倍率数据分析（0 表示未中奖）</p>
+        <p id="gameCountInfo">基于 0 局游戏的中奖倍率数据分析（0 表示未中奖）</p>
     </div>
 
     <div class="stats-grid" id="stats"></div>
@@ -192,8 +193,17 @@
 <script>
     // 中奖倍率数据（key: 局数, value: 倍率, 0 表示未中奖）
     const multiplierData =
-        {"1":25.5,"2":26.0,"3":0.0,"4":0.0,"5":27.0,"6":25.3,"7":24.3,"8":22.0,"9":25.0,"10":25.0,"11":24.5,"12":0.0,"13":0.0,"14":0.0,"15":0.0,"16":27.0,"17":27.0,"18":0.0,"19":25.3,"20":0.0,"21":25.3,"22":27.0,"23":0.0,"24":17.0,"25":26.0,"26":0.0,"27":0.0,"28":0.0,"29":27.0,"30":0.0,"31":25.3,"32":0.0,"33":0.0,"34":0.0,"35":27.0,"36":0.0,"37":0.0,"38":0.0,"39":26.5,"40":0.0,"41":0.0,"42":0.0,"43":0.0,"44":0.0,"45":31.0,"46":31.5,"47":0.0,"48":30.5,"49":30.3,"50":0.0,"51":31.5,"52":30.0,"53":0.0,"54":30.0,"55":27.0,"56":26.0,"57":0.0,"58":0.0,"59":0.0,"60":0.0,"61":32.0,"62":32.0,"63":0.0,"64":0.0,"65":30.6,"66":0.0,"67":0.0,"68":31.5,"69":32.0,"70":30.6,"71":30.6,"72":0.0,"73":0.0,"74":25.0,"75":31.5,"76":30.6,"77":0.0,"78":30.5,"79":0.0,"80":30.6,"81":0.0,"82":0.0,"83":35.3,"84":0.0,"85":0.0,"86":0.0,"87":0.0,"88":41.0,"89":0.0,"90":40.0,"91":0.0,"92":0.0,"93":0.0,"94":55.0,"95":0.0,"96":0.0,"97":0.0,"98":81.3,"99":55.0,"100":41.0}
+        {"1":0.0,"2":3.1,"3":1.9,"4":0.0,"5":6.6,"6":0.0,"7":0.0,"8":2.7,"9":0.0,"10":12.5,"11":1.4,"12":0.0,"13":0.0,"14":0.0,"15":20.3,"16":0.0,"17":0.0,"18":25.5,"19":0.0,"20":0.0,"21":0.0,"22":0.0,"23":32.0,"24":2.3,"25":0.0,"26":0.0,"27":0.0,"28":31.0,"29":1.7,"30":0.0,"31":0.0,"32":1.8,"33":13.0,"34":0.0,"35":12.1,"36":0.0,"37":15.0,"38":14.0,"39":0.0,"40":12.0,"41":0.0,"42":0.9,"43":0.0,"44":12.5,"45":0.0,"46":1.5,"47":0.0,"48":0.0,"49":0.0,"50":1.7,"51":20.0,"52":15.6,"53":12.0,"54":0.0,"55":0.0,"56":0.0,"57":0.0,"58":0.0,"59":0.0,"60":12.6,"61":0.0,"62":15.0,"63":0.0,"64":0.0,"65":0.0,"66":0.0,"67":0.0,"68":0.0,"69":0.0,"70":0.3,"71":0.0,"72":0.0,"73":23.3,"74":0.0,"75":0.0,"76":0.0,"77":0.0,"78":15.6,"79":0.0,"80":0.0,"81":0.0,"82":0.0,"83":0.0,"84":0.0,"85":0.0,"86":0.0,"87":0.0,"88":0.8,"89":1.0,"90":0.0,"91":1.6,"92":40.5}
     ;
+
+    // ========== 核心：从 multiplierData 对象中提取有序的局号列表和总局数 ==========
+    // 修复原代码中 multiplierData.length 为 undefined 的问题（对象没有 length 属性）
+    const gameKeys = Object.keys(multiplierData).sort((a, b) => Number(a) - Number(b));
+    const totalGameCount = gameKeys.length;
+
+    // 动态更新 header 中的局数信息（修复静态 HTML 中 ${multiplierData.length} 无法解析的问题）
+    document.getElementById('gameCountInfo').textContent =
+        `基于 ${totalGameCount} 局游戏的中奖倍率数据分析（0 表示未中奖）`;
 
     // 计算统计数据
     function calculateStats() {
@@ -204,17 +214,17 @@
         let highMultiplierCount = 0; // 倍率 >= 10
         let mediumMultiplierCount = 0; // 倍率 >= 2 && < 10
         let lowMultiplierCount = 0; // 倍率 > 0 && < 2
-        let winRounds = [];
 
-        for (let i = 1; i <= 100; i++) {
-            const multiplier = multiplierData[i];
+        // 修复：使用 gameKeys 遍历，而非依赖不存在的 multiplierData.length
+        for (const key of gameKeys) {
+            const roundNum = Number(key);
+            const multiplier = multiplierData[key];
             if (multiplier > 0) {
                 winCount++;
                 totalMultiplier += multiplier;
-                winRounds.push(i);
                 if (multiplier > maxMultiplier) {
                     maxMultiplier = multiplier;
-                    maxMultiplierRound = i;
+                    maxMultiplierRound = roundNum;
                 }
                 if (multiplier >= 10) highMultiplierCount++;
                 else if (multiplier >= 2) mediumMultiplierCount++;
@@ -226,14 +236,15 @@
 
         return {
             winCount,
-            winRate: ((winCount / 100) * 100).toFixed(1),
+            winRate: ((winCount / totalGameCount) * 100).toFixed(1),
             totalMultiplier: totalMultiplier.toFixed(1),
             avgMultiplier,
             maxMultiplier,
             maxMultiplierRound,
             highMultiplierCount,
             mediumMultiplierCount,
-            lowMultiplierCount
+            lowMultiplierCount,
+            totalGameCount
         };
     }
 
@@ -244,7 +255,7 @@
                 <div class="stat-card">
                     <div class="label">🎯 中奖次数</div>
                     <div class="value">${stats.winCount}</div>
-                    <div class="sub">共 100 局</div>
+                    <div class="sub">共 ${stats.totalGameCount} 局</div>
                 </div>
                 <div class="stat-card">
                     <div class="label">📈 中奖率</div>
@@ -269,7 +280,7 @@
                 <div class="stat-card">
                     <div class="label">📊 倍率分布</div>
                     <div class="value" style="font-size: 18px;">高:${stats.highMultiplierCount} 中:${stats.mediumMultiplierCount} 低:${stats.lowMultiplierCount}</div>
-                    <div class="sub">≥10 / 2-10 / <2</div>
+                    <div class="sub">≥10 / 2-10 / &lt;2</div>
                 </div>
             `;
         document.getElementById('stats').innerHTML = statsHtml;
@@ -285,26 +296,22 @@
         }
         currentChart = echarts.init(chartDom);
 
-        const games = Array.from({length: 100}, (_, i) => i + 1);
+        // 修复：根据实际数据长度动态生成 games 数组，而非硬编码 100
+        const games = Array.from({ length: totalGameCount }, (_, i) => i + 1);
         const multipliers = games.map(g => multiplierData[g]);
 
         // 标记高倍率点（倍率 >= 10）
         const highMultiplierPoints = [];
         const highMultiplierValues = [];
-        games.forEach((game, index) => {
+        games.forEach((game) => {
             if (multiplierData[game] >= 10) {
                 highMultiplierPoints.push(game);
                 highMultiplierValues.push(multiplierData[game]);
             }
         });
 
-        // 根据是否高倍率决定颜色
-        const barColors = multipliers.map(m => {
-            if (m >= 20) return '#f5576c';
-            if (m >= 10) return '#ff9800';
-            if (m > 0) return '#667eea';
-            return '#e0e0e0';
-        });
+        // 动态计算 x 轴标签间隔，确保约显示 15~20 个标签
+        const dynamicInterval = Math.max(1, Math.floor(totalGameCount / 18));
 
         const option = {
             title: {
@@ -322,7 +329,7 @@
                 axisPointer: {
                     type: 'shadow'
                 },
-                formatter: function(params) {
+                formatter: function (params) {
                     if (params.length === 0) return '';
                     const value = params[0].value;
                     const round = params[0].axisValue;
@@ -359,7 +366,7 @@
                 data: games,
                 axisLabel: {
                     rotate: 45,
-                    interval: 10,
+                    interval: dynamicInterval,
                     fontSize: 10
                 },
                 axisLine: {
@@ -386,9 +393,9 @@
             },
             toolbox: {
                 feature: {
-                    saveAsImage: {title: '保存图片'},
-                    restore: {title: '重置'},
-                    zoom: {title: {zoom: '区域缩放', back: '还原'}}
+                    saveAsImage: { title: '保存图片' },
+                    restore: { title: '重置' },
+                    zoom: { title: { zoom: '区域缩放', back: '还原' } }
                 },
                 right: 20,
                 top: 20
@@ -399,7 +406,7 @@
                     type: 'bar',
                     data: multipliers,
                     itemStyle: {
-                        color: function(params) {
+                        color: function (params) {
                             const value = params.value;
                             if (value >= 20) return '#f5576c';
                             if (value >= 10) return '#ff9800';
@@ -413,7 +420,7 @@
                     label: {
                         show: type === 'all',
                         position: 'top',
-                        formatter: function(params) {
+                        formatter: function (params) {
                             if (params.value === 0) return '';
                             if (params.value >= 10) return params.value;
                             return '';
@@ -428,7 +435,7 @@
                     name: '高倍率 (≥10)',
                     type: 'scatter',
                     data: highMultiplierPoints.map((round, idx) => [round, highMultiplierValues[idx]]),
-                    symbolSize: function(value) {
+                    symbolSize: function (value) {
                         if (value[1] >= 20) return 20;
                         if (value[1] >= 15) return 16;
                         return 12;
@@ -443,7 +450,7 @@
                     },
                     label: {
                         show: type === 'all',
-                        formatter: function(params) {
+                        formatter: function (params) {
                             return params.value[1] + '倍';
                         },
                         position: 'top',
@@ -453,7 +460,7 @@
                         color: '#ff9800'
                     },
                     tooltip: {
-                        formatter: function(params) {
+                        formatter: function (params) {
                             return `第 ${params.value[0]} 局<br/>🎉 高倍率: ${params.value[1]} 倍`;
                         }
                     }
