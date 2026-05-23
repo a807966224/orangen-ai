@@ -24,6 +24,27 @@ orange/
 ### 首次运行（下载配置文件）
 
 ```bash
+# 安装wsl & docker
+wsl --install
+
+# 进 WSL2 装 Docker（复制粘贴就行）
+wsl bash -c "curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER"
+
+# 进 WSL2
+wsl
+
+# 添加docker用户组
+groups $USER
+sudo usermod -aG docker $USER
+sudo usermod -aG docker $USER
+
+# 启动 Docker
+sudo service docker start
+
+# 测试
+docker run hello-world
+
+
 cd orange/docker
 
 # 创建必要目录
