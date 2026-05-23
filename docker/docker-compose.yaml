@@ -56,7 +56,8 @@ services:
     networks:
       - orange-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8317/"]
+#      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8317/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8317/"]
       interval: 30s
       timeout: 10s
       retries: 3
