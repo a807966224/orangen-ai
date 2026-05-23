@@ -7,12 +7,22 @@ services:
       - .:/data
     command: >
       sh -c "
+        echo 'Checking existing config...'
+        # 如果 config.yaml 是目录（之前错误创建的），先删除
+        if [ -d /data/config.yaml ]; then
+          echo 'Found config.yaml as directory, removing it...'
+          rm -rf /data/config.yaml
+        fi
+        # 如果 config.yaml 文件不存在，则下载
         if [ ! -f /data/config.yaml ]; then
           echo 'Downloading config.yaml from GitHub...'
-          wget -q -O /data/config.yaml https://raw.githubusercontent.com/router-for-me/CLIProxyAPI/main/config.example.yaml
+          wget --no-check-certificate -O /data/config.yaml 'https://raw.githubusercontent.com/router-for-me/CLIProxyAPI/main/config.example.yaml' || {
+            echo 'Download failed, creating empty config file...'
+            echo '# Configuration file - Please edit this file' > /data/config.yaml
+          }
           echo 'config.yaml downloaded. You can edit it before starting services.'
         else
-          echo 'config.yaml already exists, skipping download.'
+          echo 'config.yaml already exists as a file, skipping download.'
         fi
       "
     profiles:
@@ -46,7 +56,7 @@ services:
     networks:
       - orange-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8317/v0/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8317/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -89,6 +99,12 @@ services:
       - cli-proxy-api
     networks:
       - orange-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
   orange-network:

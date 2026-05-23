@@ -161,3 +161,9 @@ docker network inspect orange-ai-network
 ### 端口冲突
 
 如果端口被占用，修改 `docker-compose.yaml` 中的端口映射。
+
+### 如何使用
+
+- 管理界面: http://localhost:5173
+- 后端 API: http://localhost:7777
+- AI 代理: http://localhost:8317  

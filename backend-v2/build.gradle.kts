@@ -48,8 +48,15 @@ kotlin {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	systemProperty("file.encoding", "UTF-8")
 }
 
-application {
-	mainClass.set("SineWaveMultiplierHelperV2")
+tasks.withType<JavaCompile> {
+	options.encoding = "UTF-8"
 }
+
+springBoot {
+	mainClass.set("xyz.chengzi.backendv2.BackendV2ApplicationKt")
+}
+
+

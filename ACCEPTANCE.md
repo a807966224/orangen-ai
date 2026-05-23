@@ -2,7 +2,7 @@
 
 ## 1. 文档概述
 
-**项目名称**: SineWaveMultiplierHelperV2 算法验收
+**项目名称**: xyz.chengzi.backendv2.SineWaveMultiplierHelperV2 算法验收
 **验收日期**: 2026-05-04
 **算法版本**: V4 (重构版)
 **需求版本**: SRS v1.0
