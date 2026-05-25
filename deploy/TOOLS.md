@@ -4,6 +4,14 @@ Skills define _how_ tools work. This file is for _your_ specifics — the stuff 
 
 ---
 
+## ⚠️ 工具限制备忘
+
+| 工具 | 限制 | 应对 |
+|------|------|------|
+| `write` | 单次写入有长度上限（约 8000 字符） | 长文档必须拆分多个文件 |
+
+---
+
 ## 🖥️ 开发环境
 
 ### 代码编辑器
